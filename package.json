@@ -1,0 +1,26 @@
+{
+  "name": "lumen",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lumen — personal, privacy-conscious health tracking. TypeScript modular monolith.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build": "npm run build --workspace @lumen/api",
+    "test": "npm run test --workspaces --if-present",
+    "dev:api": "npm run dev --workspace @lumen/api",
+    "dev:mobile": "npm run start --workspace @lumen/mobile",
+    "worker": "npm run worker --workspace @lumen/api",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f api worker",
+    "db:generate": "npm run db:generate --workspace @lumen/api",
+    "db:migrate": "npm run db:migrate --workspace @lumen/api"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
