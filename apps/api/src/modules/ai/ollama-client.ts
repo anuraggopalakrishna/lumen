@@ -35,6 +35,8 @@ export type OllamaClientOptions = {
   timeoutMs?: number;
   keepAlive?: string;
   numCtx?: number;
+  /** Disable reasoning-model "thinking" for schema-constrained output. */
+  think?: boolean;
   fetchImpl?: FetchLike;
 };
 
@@ -86,6 +88,7 @@ export function createOllamaClient(options: OllamaClientOptions): OllamaClient {
         stream: false,
         keep_alive: keepAlive,
         format: request.format,
+        ...(options.think === undefined ? {} : { think: options.think }),
         messages: [
           { role: 'system', content: request.system },
           { role: 'user', content: request.user },

@@ -67,6 +67,7 @@ export class RecommendationGenerationService {
       timeoutMs: this.config.ollamaTimeoutMs,
       keepAlive: this.config.ollamaKeepAlive,
       numCtx: this.config.ollamaNumCtx,
+      think: this.config.ollamaThink,
       ...overrides,
     };
   }

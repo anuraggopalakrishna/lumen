@@ -26,6 +26,10 @@ const envSchema = z.object({
   OLLAMA_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
   OLLAMA_KEEP_ALIVE: z.string().min(1).default('30m'),
   OLLAMA_NUM_CTX: z.coerce.number().int().positive().default(4096),
+  // Reasoning models (qwen3) spend a large token budget "thinking" before the
+  // JSON. For schema-constrained suggestions that latency buys little, so
+  // thinking is off unless explicitly enabled.
+  OLLAMA_THINK: booleanString(false),
 });
 
 export type AppConfig = {
@@ -44,6 +48,7 @@ export type AppConfig = {
   ollamaTimeoutMs: number;
   ollamaKeepAlive: string;
   ollamaNumCtx: number;
+  ollamaThink: boolean;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -76,5 +81,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     ollamaTimeoutMs: value.OLLAMA_TIMEOUT_MS,
     ollamaKeepAlive: value.OLLAMA_KEEP_ALIVE,
     ollamaNumCtx: value.OLLAMA_NUM_CTX,
+    ollamaThink: value.OLLAMA_THINK,
   };
 }

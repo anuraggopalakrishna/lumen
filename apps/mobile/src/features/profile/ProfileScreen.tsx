@@ -12,6 +12,11 @@ import {
   View,
 } from 'react-native';
 import { listConsents, setConsent } from '../../services/api/consent';
+import {
+  getHealthPreferences,
+  updateHealthPreferences,
+} from '../../services/api/preferences';
+import { getAiStatus } from '../../services/api/recommendations';
 import { deleteAccount, exportData } from '../../services/api/privacy';
 import { useApp } from '../../stores/AppProvider';
 import { colors, fonts } from '../../stores/theme';
@@ -33,6 +38,44 @@ export function ProfileScreen() {
     queryFn: listConsents,
     enabled: signedIn,
   });
+
+  const preferencesQuery = useQuery({
+    queryKey: ['health-preferences'],
+    queryFn: getHealthPreferences,
+    enabled: signedIn,
+  });
+
+  const aiStatusQuery = useQuery({
+    queryKey: ['ai-status'],
+    queryFn: getAiStatus,
+    enabled: signedIn,
+    retry: false,
+  });
+
+  const aiSharingEnabled =
+    preferencesQuery.data?.preferences.aiSharingEnabled ?? false;
+  const aiStatus = aiStatusQuery.data;
+  const aiStatusText = !aiStatus
+    ? 'Checking the private model…'
+    : !aiStatus.enabled
+      ? 'AI generation is disabled on the server.'
+      : !aiStatus.approved
+        ? `The configured model (${aiStatus.model}) is not on the allow-list.`
+        : !aiStatus.reachable
+          ? `The local model (${aiStatus.model}) is not reachable right now.`
+          : `Ready on ${aiStatus.model}.`;
+
+  const toggleAiSharing = async (value: boolean) => {
+    try {
+      await updateHealthPreferences({ aiSharingEnabled: value });
+      await queryClient.invalidateQueries({ queryKey: ['health-preferences'] });
+    } catch (error) {
+      Alert.alert(
+        'Could not update preferences',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    }
+  };
 
   const onExport = async () => {
     setBusy(true);
@@ -162,6 +205,26 @@ export function ProfileScreen() {
         </View>
       ) : null}
 
+      {signedIn ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Personalized suggestions</Text>
+          <View style={styles.consentRow}>
+            <Text style={styles.consentLabel}>
+              Use my features for suggestions
+            </Text>
+            <Switch
+              value={aiSharingEnabled}
+              onValueChange={(value) => void toggleAiSharing(value)}
+            />
+          </View>
+          <Text style={styles.cardBody}>{aiStatusText}</Text>
+          <Text style={styles.hint}>
+            Requires “Allow AI processing of my features” above. Only derived
+            windows are sent to your private model — never raw notes.
+          </Text>
+        </View>
+      ) : null}
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Your data</Text>
         <Text style={styles.cardBody}>
@@ -221,6 +284,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   cardBody: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
+  hint: { color: colors.textFaint, fontSize: 11, lineHeight: 16, marginTop: 8 },
   cardActions: {
     flexDirection: 'row',
     gap: 20,

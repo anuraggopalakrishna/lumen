@@ -2,6 +2,8 @@ node_modules/
 .expo/
 dist/
 build/
+docs/
+scripts/
 coverage/
 *.log
 *.tsbuildinfo

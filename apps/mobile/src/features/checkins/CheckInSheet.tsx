@@ -48,6 +48,19 @@ const DURATIONS = [10, 20, 30, 45, 60];
 const SLEEP_HOURS = [5, 6, 7, 8, 9];
 const SCALE = [1, 2, 3, 4, 5];
 
+/**
+ * The 1–5 scales are stored as numbers, but numbers are not intuitive to pick
+ * from. Each point is presented with a short word so the choice is about how
+ * you feel rather than a rank.
+ */
+const SCALE_LABELS = {
+  energy: ['Very low', 'Low', 'Okay', 'Good', 'High'],
+  exhaustion: ['None', 'Mild', 'Some', 'High', 'Severe'],
+  mood: ['Very low', 'Low', 'Okay', 'Good', 'Great'],
+  stress: ['None', 'Mild', 'Some', 'High', 'Severe'],
+  sleepQuality: ['Poor', 'Fair', 'Okay', 'Good', 'Great'],
+} as const;
+
 export function emptyDraft(localDate: string = todayLocalDate()): CheckInDraft {
   return {
     localDate,
@@ -67,23 +80,33 @@ export function emptyDraft(localDate: string = todayLocalDate()): CheckInDraft {
 function ScaleRow({
   value,
   onChange,
+  labels,
 }: {
   value: number;
   onChange: (value: number) => void;
+  labels: readonly string[];
 }) {
   return (
     <View style={styles.scaleRow}>
-      {SCALE.map((level) => (
-        <Pressable
-          key={level}
-          onPress={() => onChange(level)}
-          accessibilityRole="button"
-          accessibilityState={{ selected: value === level }}
-          style={[styles.scaleDot, value === level && styles.scaleDotActive]}
-        >
-          <Text style={styles.scaleText}>{level}</Text>
-        </Pressable>
-      ))}
+      {SCALE.map((level, index) => {
+        const active = value === level;
+        return (
+          <Pressable
+            key={level}
+            onPress={() => onChange(level)}
+            accessibilityRole="button"
+            accessibilityLabel={labels[index]}
+            accessibilityState={{ selected: active }}
+            style={[styles.scaleOption, active && styles.scaleOptionActive]}
+          >
+            <Text
+              style={[styles.scaleText, active && styles.scaleTextActive]}
+            >
+              {labels[index]}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -155,24 +178,28 @@ export function CheckInSheet({
           <Text style={styles.label}>ENERGY</Text>
           <ScaleRow
             value={draft.energy}
+            labels={SCALE_LABELS.energy}
             onChange={(energy) => setDraft({ ...draft, energy })}
           />
 
           <Text style={styles.label}>EXHAUSTION</Text>
           <ScaleRow
             value={draft.exhaustion}
+            labels={SCALE_LABELS.exhaustion}
             onChange={(exhaustion) => setDraft({ ...draft, exhaustion })}
           />
 
           <Text style={styles.label}>MOOD</Text>
           <ScaleRow
             value={draft.mood}
+            labels={SCALE_LABELS.mood}
             onChange={(mood) => setDraft({ ...draft, mood })}
           />
 
           <Text style={styles.label}>STRESS</Text>
           <ScaleRow
             value={draft.stress}
+            labels={SCALE_LABELS.stress}
             onChange={(stress) => setDraft({ ...draft, stress })}
           />
 
@@ -220,6 +247,7 @@ export function CheckInSheet({
           <Text style={styles.subLabel}>SLEEP QUALITY</Text>
           <ScaleRow
             value={draft.sleepQuality}
+            labels={SCALE_LABELS.sleepQuality}
             onChange={(sleepQuality) => setDraft({ ...draft, sleepQuality })}
           />
 
@@ -286,21 +314,30 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginTop: 16,
   },
-  scaleRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  scaleDot: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+  scaleRow: { flexDirection: 'row', gap: 6 },
+  scaleOption: {
+    flex: 1,
+    minHeight: 58,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#DAD6CE',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 3,
+    paddingVertical: 6,
   },
-  scaleDotActive: {
+  scaleOptionActive: {
     backgroundColor: colors.primarySoft,
     borderColor: colors.primarySoft,
   },
-  scaleText: { color: '#4B4B44', fontWeight: '700' },
+  scaleText: {
+    color: '#4B4B44',
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  scaleTextActive: { color: colors.primaryDeep, fontWeight: '800' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
   note: {
     height: 115,

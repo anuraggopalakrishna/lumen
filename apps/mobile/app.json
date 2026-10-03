@@ -9,13 +9,30 @@
       "resizeMode": "contain",
       "backgroundColor": "#F9F7F2"
     },
-    "assetBundlePatterns": ["**/*"],
-    "ios": { "supportsTablet": true },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lumen.healthtracker"
+    },
     "android": {
+      "package": "com.lumen.healthtracker",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#F9F7F2"
       }
     },
-    "web": { "bundler": "metro" }
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-asset"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "46a28562-a548-4a8c-b2ed-287e15e53e0e"
+      }
+    }
   }
 }

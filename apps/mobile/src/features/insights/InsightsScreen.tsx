@@ -1,4 +1,8 @@
-import type { MetricSummary } from '@lumen/shared';
+import {
+  SYMPTOM_LABELS,
+  type MetricSummary,
+  type SymptomCode,
+} from '@lumen/shared';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useDashboard } from '../dashboard/useDashboard';
 import { colors, fonts } from '../../stores/theme';
@@ -13,6 +17,18 @@ const TREND_ARROW: Record<MetricSummary['trend'], string> = {
 function format(metric: MetricSummary, value: number | null): string {
   if (value === null) return '--';
   return metric.metric === 'movement' ? value.toFixed(0) : value.toFixed(1);
+}
+
+/**
+ * Symptom codes are stored machine-first (`low_mood`, `sore_throat`). Never show
+ * those raw — prefer the shared label and fall back to a humanized form for any
+ * code the client does not yet know.
+ */
+function symptomLabel(code: string): string {
+  const label = SYMPTOM_LABELS[code as SymptomCode];
+  if (label) return label;
+  const spaced = code.replace(/_/g, ' ');
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 export function InsightsScreen() {
@@ -62,7 +78,7 @@ export function InsightsScreen() {
           <Text style={styles.sectionTitle}>Symptoms logged</Text>
           {data.symptoms.slice(0, 6).map((symptom) => (
             <Text key={symptom.symptomCode} style={styles.evidence}>
-              • {symptom.symptomCode}: {symptom.count7} in 7 days,{' '}
+              • {symptomLabel(symptom.symptomCode)}: {symptom.count7} in 7 days,{' '}
               {symptom.count28} in 28 days
             </Text>
           ))}

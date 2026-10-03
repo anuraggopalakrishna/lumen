@@ -13,6 +13,7 @@ import { Ring } from '../components/Ring';
 import { SectionHeader } from '../components/SectionHeader';
 import { derivePlan } from '../features/dashboard/derivePlan';
 import { useDashboard } from '../features/dashboard/useDashboard';
+import { RecommendationsCard } from '../features/recommendations/RecommendationsCard';
 import { logCycleEvent } from '../features/cycle/logCycleEvent';
 import { formatLongDate, todayLocalDate } from '../lib/date';
 import { useApp } from '../stores/AppProvider';
@@ -197,6 +198,9 @@ export function TodayScreen({
           </View>
         </View>
       )}
+
+      <SectionHeader title="Suggestions for you" />
+      <RecommendationsCard />
 
       <Pressable onPress={onOpenCheckIn} style={styles.logButton}>
         <Text style={styles.logButtonPlus}>＋</Text>

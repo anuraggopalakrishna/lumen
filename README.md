@@ -77,6 +77,12 @@ npm test              # API unit tests (cycle math, features, safety, time)
 npm run build         # production bundle of the API
 ```
 
+## Ship to a phone
+
+For a shareable Android APK, the Cloudflare Tunnel to reach your API, and turning
+on the consent-gated AI suggestions, see
+[docs/mobile-release.md](docs/mobile-release.md).
+
 ## Deploy
 
 A multi-stage API image (`apps/api/Dockerfile`) and a `docker-compose.yml` with
