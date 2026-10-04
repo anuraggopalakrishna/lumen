@@ -18,3 +18,16 @@ export const colors = {
 export const fonts = {
   serif: 'serif',
 } as const;
+
+/**
+ * Single typographic scale for the app.
+ * greeting: Today header · headline: screen titles · section: SectionHeader ·
+ * cardTitle: card headings · body: card copy.
+ */
+export const type = {
+  greeting: { fontSize: 24, lineHeight: 30 },
+  headline: { fontSize: 24, lineHeight: 30 },
+  section: { fontSize: 18, lineHeight: 24 },
+  cardTitle: { fontSize: 16, lineHeight: 22 },
+  cycleDay: { fontSize: 26, lineHeight: 32 },
+} as const;
