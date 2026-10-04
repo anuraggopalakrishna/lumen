@@ -1,6 +1,6 @@
 import type { DashboardToday, MetricSummary } from '@lumen/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -16,8 +16,9 @@ import { useDashboard } from '../features/dashboard/useDashboard';
 import { RecommendationsCard } from '../features/recommendations/RecommendationsCard';
 import { logCycleEvent } from '../features/cycle/logCycleEvent';
 import { formatLongDate, todayLocalDate } from '../lib/date';
+import { listLocalCycleEvents } from '../services/storage/db';
 import { useApp } from '../stores/AppProvider';
-import { colors, fonts } from '../stores/theme';
+import { colors, fonts, type } from '../stores/theme';
 
 const PHASE_LABELS: Record<DashboardToday['cycle']['phase'], string> = {
   menstrual: 'MENSTRUAL PHASE',
@@ -62,6 +63,64 @@ export function TodayScreen({
   const queryClient = useQueryClient();
   const { data, isLoading } = useDashboard();
   const [loggingPeriod, setLoggingPeriod] = useState(false);
+  const [startedToday, setStartedToday] = useState(false);
+  const [endedToday, setEndedToday] = useState(false);
+  const [showEndOption, setShowEndOption] = useState(false);
+  const [periodDay, setPeriodDay] = useState<number | null>(null);
+  const today = todayLocalDate();
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const events = await listLocalCycleEvents();
+        if (!active) return;
+        const starts = events
+          .filter((e) => e.eventType === 'period_start' && e.eventDate <= today)
+          .map((e) => e.eventDate)
+          .sort();
+        const lastStart = starts.length > 0 ? starts[starts.length - 1]! : null;
+        const closed =
+          lastStart !== null &&
+          events.some(
+            (e) =>
+              e.eventType === 'period_end' &&
+              e.eventDate >= lastStart &&
+              e.eventDate <= today,
+          );
+        const daysSince =
+          lastStart !== null
+            ? Math.round(
+                (Date.parse(`${today}T00:00:00Z`) -
+                  Date.parse(`${lastStart}T00:00:00Z`)) /
+                  86_400_000,
+              )
+            : null;
+        const isActive = lastStart !== null && !closed;
+        setStartedToday(
+          events.some(
+            (event) =>
+              event.eventType === 'period_start' && event.eventDate === today,
+          ),
+        );
+        setEndedToday(
+          events.some(
+            (event) =>
+              event.eventType === 'period_end' && event.eventDate === today,
+          ),
+        );
+        setShowEndOption(
+          isActive && daysSince !== null && daysSince >= 3,
+        );
+        setPeriodDay(isActive && daysSince !== null ? daysSince + 1 : null);
+      } catch {
+        // Keep the button enabled; logging will surface any storage error.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [today, data?.cycle?.cycleDay]);
 
   const energy = data?.metrics.find((m) => m.metric === 'energy');
   const sleep = data?.metrics.find((m) => m.metric === 'sleep');
@@ -69,18 +128,56 @@ export function TodayScreen({
   const plan = data ? derivePlan(data) : null;
 
   const onLogPeriod = async () => {
+    if (loggingPeriod || startedToday) return;
     setLoggingPeriod(true);
     try {
       await logCycleEvent('period_start');
-      await syncNow();
-      await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      setStartedToday(true);
+      setPeriodDay(1);
+      setShowEndOption(false);
     } catch (error) {
       Alert.alert(
         'Could not log period',
         error instanceof Error ? error.message : 'Please try again.',
       );
+      return;
     } finally {
       setLoggingPeriod(false);
+    }
+    // Sync is best-effort: the period is already saved locally, so a sync
+    // failure must never leave the button looking dead.
+    try {
+      await syncNow();
+    } catch {
+      // lastSyncError / pending count already reflect the queue state.
+    } finally {
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    }
+  };
+
+  const onLogPeriodEnd = async () => {
+    if (loggingPeriod) return;
+    setLoggingPeriod(true);
+    try {
+      await logCycleEvent('period_end');
+      setEndedToday(true);
+      setShowEndOption(false);
+      setPeriodDay(null);
+    } catch (error) {
+      Alert.alert(
+        'Could not log period end',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+      return;
+    } finally {
+      setLoggingPeriod(false);
+    }
+    try {
+      await syncNow();
+    } catch {
+      // Queued; sync status UI already reflects it.
+    } finally {
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     }
   };
 
@@ -131,15 +228,63 @@ export function TodayScreen({
             <Text style={styles.moonIcon}>◒</Text>
           </View>
         </View>
+        {endedToday ? (
+          <Text
+            style={styles.periodLoggedText}
+            accessibilityLabel="Period ended"
+          >
+            ✓ Period ended
+          </Text>
+        ) : showEndOption ? (
+        <Pressable
+          onPress={onLogPeriodEnd}
+          disabled={loggingPeriod}
+          accessibilityRole="button"
+          accessibilityLabel="Log period ended"
+          accessibilityState={{
+            disabled: loggingPeriod,
+            busy: loggingPeriod,
+          }}
+          style={({ pressed }) => [
+            styles.periodButton,
+            pressed ? styles.periodButtonPressed : null,
+            loggingPeriod && styles.periodButtonDisabled,
+          ]}
+        >
+          <Text style={styles.periodButtonText}>
+            {loggingPeriod ? 'Logging…' : 'Period ended?'}
+          </Text>
+        </Pressable>
+        ) : startedToday || periodDay !== null ? (
+          <Text
+            style={styles.periodLoggedText}
+            accessibilityLabel="Period logged for today"
+          >
+            {periodDay !== null && periodDay > 1
+              ? `✓ Period logged · Day ${periodDay}`
+              : '✓ Period logged'}
+          </Text>
+        ) : (
         <Pressable
           onPress={onLogPeriod}
           disabled={loggingPeriod}
-          style={styles.periodButton}
+          accessibilityRole="button"
+          accessibilityLabel="Log period started today"
+          accessibilityState={{
+            disabled: loggingPeriod,
+            busy: loggingPeriod,
+          }}
+          style={({ pressed }) => [
+            styles.periodButton,
+            pressed ? styles.periodButtonPressed : null,
+            loggingPeriod && styles.periodButtonDisabled,
+          ]}
         >
           <Text style={styles.periodButtonText}>
             {loggingPeriod ? 'Logging…' : 'Period started today'}
           </Text>
         </Pressable>
+        )}
       </View>
 
       <SectionHeader title="Today at a glance" />
@@ -252,7 +397,9 @@ const styles = StyleSheet.create({
   greeting: {
     color: colors.text,
     fontFamily: fonts.serif,
-    fontSize: 31,
+    fontSize: type.greeting.fontSize,
+    lineHeight: type.greeting.lineHeight,
+    fontWeight: '600',
     marginTop: 5,
   },
   avatar: {
@@ -285,8 +432,14 @@ const styles = StyleSheet.create({
     marginTop: 18,
     marginBottom: 18,
   },
-  cycleDay: { color: '#FCFBF6', fontFamily: fonts.serif, fontSize: 33 },
-  cycleCaption: { color: '#C3CEC9', marginTop: 3, fontSize: 13 },
+  cycleDay: {
+    color: '#FCFBF6',
+    fontFamily: fonts.serif,
+    fontSize: type.cycleDay.fontSize,
+    lineHeight: type.cycleDay.lineHeight,
+    fontWeight: '600',
+  },
+  cycleCaption: { color: '#C3CEC9', marginTop: 3, fontSize: 13, lineHeight: 18 },
   moon: {
     width: 54,
     height: 54,
@@ -300,10 +453,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#5C746A',
     borderRadius: 14,
-    paddingVertical: 11,
+    paddingVertical: 12,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 46,
   },
-  periodButtonText: { color: '#CAD7D2', fontSize: 13, fontWeight: '700' },
+  periodButtonPressed: { backgroundColor: '#426258', opacity: 0.85 },
+  periodButtonDisabled: { opacity: 0.7 },
+  periodLoggedText: { color: '#C3CEC9', fontSize: 13, fontWeight: '700', textAlign: 'center', paddingVertical: 8 },
+  periodButtonText: { color: '#CAD7D2', fontSize: 14, fontWeight: '700' },
   metricsCard: {
     borderRadius: 22,
     borderWidth: 1,
@@ -320,6 +478,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     padding: 18,
     flexDirection: 'row',
+    alignItems: 'flex-start',
   },
   planIcon: {
     height: 38,
@@ -329,10 +488,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 13,
+    marginTop: 2,
+    flexShrink: 0,
   },
   planEmoji: { fontSize: 21, color: '#FFF9E7' },
-  planText: { flex: 1 },
-  planTitle: { color: '#352F28', fontSize: 16, fontWeight: '700', marginBottom: 5 },
+  planText: { flex: 1, justifyContent: 'center' },
+  planTitle: {
+    color: '#352F28',
+    fontSize: type.cardTitle.fontSize,
+    lineHeight: type.cardTitle.lineHeight,
+    fontWeight: '700',
+    marginBottom: 5,
+  },
   planBody: { color: '#625C52', fontSize: 13, lineHeight: 19 },
   planBasis: {
     color: '#796849',
