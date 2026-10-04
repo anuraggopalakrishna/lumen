@@ -1,6 +1,6 @@
-import type { Recommendation, SuggestionCategory } from '@lumen/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import type { Recommendation, SuggestionCategory } from "@lumen/shared";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -8,44 +8,57 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import { getHealthPreferences } from '../../services/api/preferences';
+} from "react-native";
+import { getHealthPreferences } from "../../services/api/preferences";
 import {
   generateRecommendations,
   listRecommendations,
   sendRecommendationFeedback,
-} from '../../services/api/recommendations';
-import { ApiError } from '../../services/api/client';
-import { useApp } from '../../stores/AppProvider';
-import { colors, fonts } from '../../stores/theme';
+} from "../../services/api/recommendations";
+import { ApiError } from "../../services/api/client";
+import { useApp } from "../../stores/AppProvider";
+import { colors, fonts } from "../../stores/theme";
 
 const CATEGORY_LABELS: Record<SuggestionCategory, string> = {
-  movement: 'Movement',
-  food: 'Food',
-  recovery: 'Recovery',
-  practice: 'Practice',
+  movement: "Movement",
+  food: "Food",
+  recovery: "Recovery",
+  practice: "Practice",
 };
 
 const CONFIDENCE_LABELS = {
-  low: 'low confidence',
-  medium: 'medium confidence',
-  high: 'high confidence',
+  low: "low confidence",
+  medium: "medium confidence",
+  high: "high confidence",
 } as const;
 
 function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 403) {
-      return 'AI suggestions need your consent and sharing turned on. Enable them in Profile.';
+      return "AI suggestions need your consent and sharing turned on. Enable them in Profile.";
     }
     if (error.status === 501) {
-      return 'AI generation is disabled on the server right now.';
+      return "AI generation is disabled on the server right now.";
     }
     if (error.status === 502 || error.status === 503 || error.status === 504) {
-      return 'The local model could not produce a suggestion just now. Try again shortly.';
+      return "The local model could not produce a suggestion just now. Try again shortly.";
     }
     return error.message;
   }
-  return error instanceof Error ? error.message : 'Please try again.';
+  return error instanceof Error ? error.message : "Please try again.";
+}
+
+/**
+ * Drop machine tokens before showing model text. The model occasionally echoes
+ * field names ("basedOn:") or codes ("low_mood") from its context; users should
+ * only ever see plain sentences.
+ */
+function readable(text: string): string {
+  return text
+    .replace(/^\s*based\s*on\s*[:\-–]?\s*/i, "")
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function RecommendationItem({
@@ -55,9 +68,9 @@ function RecommendationItem({
   rated,
 }: {
   recommendation: Recommendation;
-  onFeedback: (helpfulness: 'helpful' | 'not_helpful') => void;
+  onFeedback: (helpfulness: "helpful" | "not_helpful") => void;
   pendingFeedback: boolean;
-  rated: 'helpful' | 'not_helpful' | undefined;
+  rated: "helpful" | "not_helpful" | undefined;
 }) {
   const { suggestion } = recommendation;
   return (
@@ -70,37 +83,59 @@ function RecommendationItem({
           {CONFIDENCE_LABELS[recommendation.suggestion.confidence]}
         </Text>
       </View>
-      <Text style={styles.suggestion}>{suggestion.recommendation}</Text>
-      <Text style={styles.rationale}>{suggestion.rationale}</Text>
-      {suggestion.basedOn.map((basis) => (
-        <Text key={`${basis.metric}-${basis.window}`} style={styles.basis}>
-          ✦ {basis.metric} · {basis.window}: {basis.observation}
-        </Text>
-      ))}
+      <Text style={styles.suggestion}>
+        {readable(suggestion.recommendation)}
+      </Text>
+      {/* <Text style={styles.rationale}>{readable(suggestion.rationale)}</Text> */}
       {suggestion.caution ? (
-        <Text style={styles.caution}>{suggestion.caution}</Text>
+        <Text style={styles.caution}>{readable(suggestion.caution)}</Text>
       ) : null}
       <View style={styles.feedbackRow}>
-        {rated ? (
-          <Text style={styles.thanks}>
-            {rated === 'helpful' ? 'Marked helpful' : 'Marked not helpful'}
-          </Text>
-        ) : (
-          <Pressable
-            disabled={pendingFeedback}
-            onPress={() => onFeedback('helpful')}
-          >
-            <Text style={styles.feedbackAction}>Helpful</Text>
-          </Pressable>
-        )}
-        {!rated ? (
-          <Pressable
-            disabled={pendingFeedback}
-            onPress={() => onFeedback('not_helpful')}
-          >
-            <Text style={styles.feedbackMuted}>Not helpful</Text>
-          </Pressable>
-        ) : null}
+        <Text style={styles.feedbackPrompt}>Was this helpful?</Text>
+        <View style={styles.feedbackButtons}>
+          {rated ? (
+            <Text style={styles.thanks}>
+              {rated === "helpful"
+                ? "✓ Marked helpful"
+                : "✓ Marked not helpful"}
+            </Text>
+          ) : (
+            <>
+              <Pressable
+                disabled={pendingFeedback}
+                onPress={() => onFeedback("helpful")}
+                accessibilityRole="button"
+                accessibilityLabel="Mark suggestion helpful"
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.feedbackButton,
+                  styles.feedbackPrimary,
+                  pressed && styles.feedbackPressed,
+                  pendingFeedback && styles.feedbackDisabled,
+                ]}
+              >
+                <Text style={styles.feedbackPrimaryText}>
+                  {pendingFeedback ? "…" : "👍 Helpful"}
+                </Text>
+              </Pressable>
+              <Pressable
+                disabled={pendingFeedback}
+                onPress={() => onFeedback("not_helpful")}
+                accessibilityRole="button"
+                accessibilityLabel="Mark suggestion not helpful"
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.feedbackButton,
+                  styles.feedbackSecondary,
+                  pressed && styles.feedbackPressed,
+                  pendingFeedback && styles.feedbackDisabled,
+                ]}
+              >
+                <Text style={styles.feedbackSecondaryText}>👎 Not helpful</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -109,16 +144,16 @@ function RecommendationItem({
 export function RecommendationsCard() {
   const { status } = useApp();
   const queryClient = useQueryClient();
-  const signedIn = status === 'signedIn';
+  const signedIn = status === "signedIn";
 
   const recommendationsQuery = useQuery({
-    queryKey: ['recommendations'],
+    queryKey: ["recommendations"],
     queryFn: listRecommendations,
     enabled: signedIn,
   });
 
   const preferencesQuery = useQuery({
-    queryKey: ['health-preferences'],
+    queryKey: ["health-preferences"],
     queryFn: getHealthPreferences,
     enabled: signedIn,
   });
@@ -126,31 +161,33 @@ export function RecommendationsCard() {
   const generate = useMutation({
     mutationFn: generateRecommendations,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['recommendations'] });
+      void queryClient.invalidateQueries({ queryKey: ["recommendations"] });
     },
     onError: (error) => {
-      Alert.alert('Could not generate suggestions', errorMessage(error));
+      Alert.alert("Could not generate suggestions", errorMessage(error));
     },
   });
 
-  const [feedbackPendingId, setFeedbackPendingId] = useState<string | null>(null);
-  const [rated, setRated] = useState<
-    Record<string, 'helpful' | 'not_helpful'>
-  >({});
+  const [feedbackPendingId, setFeedbackPendingId] = useState<string | null>(
+    null,
+  );
+  const [rated, setRated] = useState<Record<string, "helpful" | "not_helpful">>(
+    {},
+  );
 
   const giveFeedback = async (
     recommendation: Recommendation,
-    helpfulness: 'helpful' | 'not_helpful',
+    helpfulness: "helpful" | "not_helpful",
   ) => {
     setFeedbackPendingId(recommendation.id);
     try {
       await sendRecommendationFeedback(recommendation.id, {
         helpfulness,
-        actionTaken: 'none',
+        actionTaken: "none",
       });
       setRated((current) => ({ ...current, [recommendation.id]: helpfulness }));
     } catch (error) {
-      Alert.alert('Could not save feedback', errorMessage(error));
+      Alert.alert("Could not save feedback", errorMessage(error));
     } finally {
       setFeedbackPendingId(null);
     }
@@ -209,15 +246,18 @@ export function RecommendationsCard() {
       <Pressable
         onPress={() => generate.mutate()}
         disabled={generate.isPending || !aiSharingEnabled}
-        style={[styles.button, (!aiSharingEnabled || generate.isPending) && styles.buttonDisabled]}
+        style={[
+          styles.button,
+          (!aiSharingEnabled || generate.isPending) && styles.buttonDisabled,
+        ]}
       >
         {generate.isPending ? (
           <ActivityIndicator color={colors.primaryDeep} />
         ) : (
           <Text style={styles.buttonText}>
             {recommendations.length > 0
-              ? 'Generate new suggestions'
-              : 'Generate suggestions'}
+              ? "Generate new suggestions"
+              : "Generate suggestions"}
           </Text>
         )}
       </Pressable>
@@ -245,19 +285,19 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   itemHead: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 8,
   },
   category: {
     color: colors.primary,
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: 1,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
   },
-  confidence: { color: colors.textFaint, fontSize: 10, fontWeight: '700' },
+  confidence: { color: colors.textFaint, fontSize: 10, fontWeight: "700" },
   suggestion: {
     color: colors.text,
     fontFamily: fonts.serif,
@@ -266,20 +306,55 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   rationale: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
-  basis: { color: '#796849', fontSize: 10, lineHeight: 15, marginTop: 6 },
   caution: { color: colors.danger, fontSize: 12, lineHeight: 17, marginTop: 8 },
-  feedbackRow: { flexDirection: 'row', gap: 20, marginTop: 12 },
-  feedbackAction: { color: colors.primary, fontSize: 13, fontWeight: '700' },
-  feedbackMuted: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
-  thanks: { color: colors.primary, fontSize: 13, fontWeight: '700' },
+  feedbackRow: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  feedbackPrompt: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  feedbackButtons: { flexDirection: "row", gap: 10 },
+  feedbackButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+  },
+  feedbackPrimary: {
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primarySoft,
+  },
+  feedbackPrimaryText: {
+    color: colors.primaryDeep,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  feedbackSecondary: {
+    backgroundColor: colors.surface,
+    borderColor: "#D9D5CD",
+  },
+  feedbackSecondaryText: { color: "#5E5C56", fontSize: 14, fontWeight: "700" },
+  feedbackPressed: { opacity: 0.75 },
+  feedbackDisabled: { opacity: 0.6 },
+  thanks: { color: colors.primary, fontSize: 13, fontWeight: "800" },
   notice: {
     backgroundColor: colors.plan,
     borderRadius: 16,
     padding: 14,
     marginBottom: 12,
   },
-  noticeTitle: { color: '#352F28', fontSize: 14, fontWeight: '700' },
-  noticeBody: { color: '#625C52', fontSize: 12, lineHeight: 17, marginTop: 4 },
+  noticeTitle: { color: "#352F28", fontSize: 14, fontWeight: "700" },
+  noticeBody: { color: "#625C52", fontSize: 12, lineHeight: 17, marginTop: 4 },
   emptyTitle: {
     color: colors.text,
     fontFamily: fonts.serif,
@@ -292,15 +367,15 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     height: 54,
     marginTop: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: colors.primaryDeep, fontSize: 15, fontWeight: '700' },
+  buttonText: { color: colors.primaryDeep, fontSize: 15, fontWeight: "700" },
   footnote: {
     color: colors.textFaint,
     fontSize: 10,
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 10,
   },
 });
