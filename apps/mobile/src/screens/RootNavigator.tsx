@@ -21,6 +21,17 @@ import { AuthScreen } from './AuthScreen';
 import { TodayScreen } from './TodayScreen';
 
 function toDraft(record: LocalCheckIn) {
+  const activities =
+    record.activities.length > 0
+      ? record.activities
+      : record.movement !== 'rest' && record.durationMinutes > 0
+        ? [
+            {
+              type: record.movement,
+              durationMinutes: record.durationMinutes,
+            },
+          ]
+        : [];
   return {
     localDate: record.localDate,
     energy: record.energy,
@@ -29,6 +40,7 @@ function toDraft(record: LocalCheckIn) {
     stress: record.stress,
     movement: record.movement,
     durationMinutes: record.durationMinutes,
+    activities,
     sleepHours: record.sleepHours,
     sleepQuality: record.sleepQuality,
     symptoms: record.symptoms,

@@ -11,6 +11,11 @@ export type SessionUser = {
 
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn' | 'localOnly';
 
+export type ActivityEntry = {
+  type: ActivityType;
+  durationMinutes: number;
+};
+
 /** The in-progress daily check-in shown in the sheet. */
 export type CheckInDraft = {
   localDate: string;
@@ -20,6 +25,7 @@ export type CheckInDraft = {
   stress: number;
   movement: ActivityType;
   durationMinutes: number;
+  activities: ActivityEntry[];
   sleepHours: number;
   sleepQuality: number;
   symptoms: SymptomCode[];

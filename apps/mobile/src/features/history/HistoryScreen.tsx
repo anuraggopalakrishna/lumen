@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SYMPTOM_LABELS } from '@lumen/shared';
 import { formatLongDate } from '../../lib/date';
 import { listLocalCheckIns } from '../../services/storage/db';
-import { colors, fonts } from '../../stores/theme';
+import { colors, fonts, type } from '../../stores/theme';
 
 export function HistoryScreen() {
   const { data, isLoading } = useQuery({
@@ -40,7 +40,14 @@ export function HistoryScreen() {
             Energy {entry.energy}/5 · Exhaustion {entry.exhaustion}/5 · Mood{' '}
             {entry.mood}/5 · Stress {entry.stress}/5
           </Text>
-          {entry.movement !== 'rest' ? (
+          {entry.activities.length > 0 ? (
+            <Text style={styles.cardDetail}>
+              Movement:{' '}
+              {entry.activities
+                .map((activity) => `${activity.type} · ${activity.durationMinutes} min`)
+                .join('  +  ')}
+            </Text>
+          ) : entry.movement !== 'rest' ? (
             <Text style={styles.cardDetail}>
               Movement: {entry.movement} · {entry.durationMinutes} min
             </Text>
@@ -74,7 +81,9 @@ const styles = StyleSheet.create({
   headline: {
     color: colors.text,
     fontFamily: fonts.serif,
-    fontSize: 29,
+    fontSize: type.headline.fontSize,
+    lineHeight: type.headline.lineHeight,
+    fontWeight: '600',
     marginTop: 6,
     marginBottom: 20,
   },
@@ -111,7 +120,8 @@ const styles = StyleSheet.create({
   emptyTitle: {
     color: colors.text,
     fontFamily: fonts.serif,
-    fontSize: 27,
+    fontSize: 22,
+    lineHeight: 28,
     textAlign: 'center',
     marginBottom: 10,
   },

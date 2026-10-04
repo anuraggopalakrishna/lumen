@@ -2,6 +2,7 @@ import {
   DISCLAIMER,
   FEATURE_VERSION,
   averageOrNull,
+  classifyWellbeingState,
   estimateCycleContext,
 } from '@lumen/shared';
 import type { DashboardToday, MetricName, MetricSummary } from '@lumen/shared';
@@ -37,8 +38,18 @@ const METRICS: Record<MetricName, MetricDefinition> = {
   },
   movement: {
     unit: 'minutes',
-    extract: (c) =>
-      c.movement !== 'rest' && c.durationMinutes > 0 ? c.durationMinutes : null,
+    extract: (c) => {
+      if (c.activities.length > 0) {
+        const total = c.activities.reduce(
+          (sum, entry) => sum + entry.durationMinutes,
+          0,
+        );
+        return total > 0 ? total : null;
+      }
+      return c.movement !== 'rest' && c.durationMinutes > 0
+        ? c.durationMinutes
+        : null;
+    },
     epsilon: 5,
     format: (v) => v.toFixed(0),
   },
@@ -125,6 +136,19 @@ export function buildLocalDashboard(
     date,
   );
 
+  const recentDays = lastNDates(date, 7)
+    .slice()
+    .reverse()
+    .map((day) => {
+      const checkIn = byDate.get(day);
+      return {
+        energy: checkIn?.energy ?? null,
+        exhaustion: checkIn?.exhaustion ?? null,
+        sleepHours:
+          checkIn && checkIn.sleepHours > 0 ? checkIn.sleepHours : null,
+      };
+    });
+
   const evidence: string[] = [];
   for (const metric of metrics) {
     if (metric.avg3 === null || metric.avg28 === null) continue;
@@ -142,6 +166,9 @@ export function buildLocalDashboard(
   return {
     date,
     featureVersion: FEATURE_VERSION,
+    wellbeing: classifyWellbeingState(recentDays, {
+      menstruating: cycle.phase === 'menstrual',
+    }),
     cycle,
     metrics,
     symptoms: buildSymptoms(date, checkIns),

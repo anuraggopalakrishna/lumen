@@ -1,6 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import type {
   ActivityInput,
+  ActivityType,
   CheckInInput,
   SleepInput,
   SymptomInput,
@@ -9,7 +10,7 @@ import type { CheckInDraft } from '../../types';
 import { enqueueMutation, saveLocalCheckIn } from '../../services/storage/db';
 import { flushQueue } from '../../services/storage/syncQueue';
 
-function activityIntensity(movement: CheckInDraft['movement']): ActivityInput['intensity'] {
+function activityIntensity(movement: ActivityType): ActivityInput['intensity'] {
   return movement === 'strength' ||
     movement === 'run' ||
     movement === 'cycle' ||
@@ -30,8 +31,26 @@ export async function saveCheckIn(draft: CheckInDraft): Promise<void> {
   const now = new Date().toISOString();
   const checkInClientId = Crypto.randomUUID();
 
+  // Canonical multi-activity list; fall back to the legacy single fields.
+  // 'rest' is never a queued activity — it means no activity.
+  const activities = (
+    draft.activities.length > 0
+      ? draft.activities
+      : draft.movement !== 'rest' && draft.durationMinutes > 0
+        ? [{ type: draft.movement, durationMinutes: draft.durationMinutes }]
+        : []
+  ).filter((entry) => entry.type !== 'rest' && entry.durationMinutes > 0);
+  const primary = activities[0];
+  const totalMinutes = activities.reduce(
+    (sum, entry) => sum + entry.durationMinutes,
+    0,
+  );
+
   await saveLocalCheckIn({
     ...draft,
+    activities,
+    movement: primary ? primary.type : 'rest',
+    durationMinutes: primary ? totalMinutes : 0,
     clientId: checkInClientId,
     updatedAt: now,
     synced: false,
@@ -54,13 +73,14 @@ export async function saveCheckIn(draft: CheckInDraft): Promise<void> {
     createdAt: now,
   });
 
-  if (draft.movement !== 'rest' && draft.durationMinutes > 0) {
+  for (const entry of activities) {
+    if (entry.durationMinutes <= 0) continue;
     const activityPayload: ActivityInput = {
       clientId: Crypto.randomUUID(),
       occurredAt: occurredAtFor(draft.localDate),
-      activityType: draft.movement,
-      durationMinutes: draft.durationMinutes,
-      intensity: activityIntensity(draft.movement),
+      activityType: entry.type,
+      durationMinutes: entry.durationMinutes,
+      intensity: activityIntensity(entry.type),
     };
     await enqueueMutation({
       id: Crypto.randomUUID(),

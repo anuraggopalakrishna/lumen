@@ -57,6 +57,14 @@ async function openDatabase(): Promise<SQLite.SQLiteDatabase> {
       value TEXT NOT NULL
     );
   `);
+  // Best-effort migration for existing installs: multi-activity support.
+  try {
+    await db.execAsync(
+      `ALTER TABLE local_checkins ADD COLUMN activities TEXT NOT NULL DEFAULT '[]'`,
+    );
+  } catch {
+    // Column already exists on fresh installs / migrated DBs.
+  }
   return db;
 }
 
@@ -73,6 +81,7 @@ type CheckInRow = {
   stress: number;
   movement: string;
   duration_minutes: number;
+  activities?: string | null;
   sleep_hours: number;
   sleep_quality: number;
   symptoms: string;
@@ -81,6 +90,30 @@ type CheckInRow = {
   updated_at: string;
   synced: number;
 };
+
+function parseActivities(
+  raw: string | null | undefined,
+  fallbackMovement: string,
+  fallbackDuration: number,
+): LocalCheckIn['activities'] {
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as LocalCheckIn['activities'];
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // Fall through to the legacy single-activity shape.
+    }
+  }
+  if (fallbackMovement && fallbackMovement !== 'rest' && fallbackDuration > 0) {
+    return [
+      {
+        type: fallbackMovement as LocalCheckIn['activities'][number]['type'],
+        durationMinutes: fallbackDuration,
+      },
+    ];
+  }
+  return [];
+}
 
 function rowToCheckIn(row: CheckInRow): LocalCheckIn {
   return {
@@ -91,6 +124,7 @@ function rowToCheckIn(row: CheckInRow): LocalCheckIn {
     stress: row.stress,
     movement: row.movement as LocalCheckIn['movement'],
     durationMinutes: row.duration_minutes,
+    activities: parseActivities(row.activities, row.movement, row.duration_minutes),
     sleepHours: row.sleep_hours,
     sleepQuality: row.sleep_quality,
     symptoms: JSON.parse(row.symptoms) as LocalCheckIn['symptoms'],
@@ -106,8 +140,8 @@ export async function saveLocalCheckIn(record: LocalCheckIn): Promise<void> {
   await db.runAsync(
     `INSERT INTO local_checkins
       (local_date, energy, exhaustion, mood, stress, movement, duration_minutes,
-       sleep_hours, sleep_quality, symptoms, note, client_id, updated_at, synced)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       activities, sleep_hours, sleep_quality, symptoms, note, client_id, updated_at, synced)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(local_date) DO UPDATE SET
        energy = excluded.energy,
        exhaustion = excluded.exhaustion,
@@ -115,6 +149,7 @@ export async function saveLocalCheckIn(record: LocalCheckIn): Promise<void> {
        stress = excluded.stress,
        movement = excluded.movement,
        duration_minutes = excluded.duration_minutes,
+       activities = excluded.activities,
        sleep_hours = excluded.sleep_hours,
        sleep_quality = excluded.sleep_quality,
        symptoms = excluded.symptoms,
@@ -129,6 +164,7 @@ export async function saveLocalCheckIn(record: LocalCheckIn): Promise<void> {
     record.stress,
     record.movement,
     record.durationMinutes,
+    JSON.stringify(record.activities ?? []),
     record.sleepHours,
     record.sleepQuality,
     JSON.stringify(record.symptoms),

@@ -35,7 +35,6 @@ const ACTIVITY_LABELS: Record<ActivityType, string> = {
 };
 
 const ACTIVITY_OPTIONS: ActivityType[] = [
-  'rest',
   'walk',
   'yoga',
   'strength',
@@ -70,6 +69,7 @@ export function emptyDraft(localDate: string = todayLocalDate()): CheckInDraft {
     stress: 3,
     movement: 'rest',
     durationMinutes: 20,
+    activities: [],
     sleepHours: 7,
     sleepQuality: 3,
     symptoms: [],
@@ -128,7 +128,25 @@ export function CheckInSheet({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (visible) setDraft(initial);
+    if (visible) {
+      if (
+        initial.activities.length === 0 &&
+        initial.movement !== 'rest' &&
+        initial.durationMinutes > 0
+      ) {
+        setDraft({
+          ...initial,
+          activities: [
+            {
+              type: initial.movement,
+              durationMinutes: initial.durationMinutes,
+            },
+          ],
+        });
+      } else {
+        setDraft(initial);
+      }
+    }
   }, [visible, initial]);
 
   const toggleSymptom = (code: SymptomCode) => {
@@ -138,6 +156,52 @@ export function CheckInSheet({
         ? current.symptoms.filter((item) => item !== code)
         : [...current.symptoms, code],
     }));
+  };
+
+  const toggleActivity = (type: ActivityType) => {
+    if (type === 'rest') {
+      setDraft((current) => ({
+        ...current,
+        activities: [],
+        movement: 'rest',
+      }));
+      return;
+    }
+    setDraft((current) => {
+      const clean = current.activities.filter((entry) => entry.type !== 'rest');
+      const existing = clean.find((entry) => entry.type === type);
+      const activities = existing
+        ? clean.filter((entry) => entry.type !== type)
+        : [
+            ...clean,
+            { type, durationMinutes: current.durationMinutes || 20 },
+          ];
+      const primary = activities[0];
+      return {
+        ...current,
+        activities,
+        movement: primary ? primary.type : 'rest',
+        durationMinutes: primary
+          ? activities.reduce((sum, entry) => sum + entry.durationMinutes, 0)
+          : current.durationMinutes,
+      };
+    });
+  };
+
+  const setActivityDuration = (type: ActivityType, durationMinutes: number) => {
+    setDraft((current) => {
+      const activities = current.activities.map((entry) =>
+        entry.type === type ? { ...entry, durationMinutes } : entry,
+      );
+      return {
+        ...current,
+        activities,
+        durationMinutes: activities.reduce(
+          (sum, entry) => sum + entry.durationMinutes,
+          0,
+        ),
+      };
+    });
   };
 
   const save = async () => {
@@ -203,35 +267,54 @@ export function CheckInSheet({
             onChange={(stress) => setDraft({ ...draft, stress })}
           />
 
-          <Text style={styles.label}>MOVEMENT</Text>
+          <Text style={styles.label}>MOVEMENT · PICK ANY THAT APPLY</Text>
           <View style={styles.chipRow}>
+            <Toggle
+              label="Rest"
+              selected={draft.activities.length === 0}
+              onPress={() =>
+                setDraft({
+                  ...draft,
+                  activities: [],
+                  movement: 'rest',
+                  durationMinutes: draft.durationMinutes || 20,
+                })
+              }
+            />
             {ACTIVITY_OPTIONS.map((option) => (
               <Toggle
                 key={option}
                 label={ACTIVITY_LABELS[option]}
-                selected={draft.movement === option}
-                onPress={() => setDraft({ ...draft, movement: option })}
+                selected={draft.activities.some(
+                  (entry) => entry.type === option,
+                )}
+                onPress={() => toggleActivity(option)}
               />
             ))}
+            <Toggle
+              label={ACTIVITY_LABELS.other}
+              selected={draft.activities.some((entry) => entry.type === 'other')}
+              onPress={() => toggleActivity('other')}
+            />
           </View>
 
-          {draft.movement !== 'rest' ? (
-            <>
-              <Text style={styles.label}>DURATION</Text>
+          {draft.activities.map((entry) => (
+            <View key={entry.type} style={styles.activityBlock}>
+              <Text style={styles.subLabel}>
+                {ACTIVITY_LABELS[entry.type].toUpperCase()} · DURATION
+              </Text>
               <View style={styles.chipRow}>
                 {DURATIONS.map((minutes) => (
                   <Toggle
                     key={minutes}
                     label={`${minutes} min`}
-                    selected={draft.durationMinutes === minutes}
-                    onPress={() =>
-                      setDraft({ ...draft, durationMinutes: minutes })
-                    }
+                    selected={entry.durationMinutes === minutes}
+                    onPress={() => setActivityDuration(entry.type, minutes)}
                   />
                 ))}
               </View>
-            </>
-          ) : null}
+            </View>
+          ))}
 
           <Text style={styles.label}>SLEEP LAST NIGHT</Text>
           <View style={styles.chipRow}>
@@ -339,6 +422,7 @@ const styles = StyleSheet.create({
   },
   scaleTextActive: { color: colors.primaryDeep, fontWeight: '800' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
+  activityBlock: { marginTop: 4 },
   note: {
     height: 115,
     backgroundColor: colors.surface,
