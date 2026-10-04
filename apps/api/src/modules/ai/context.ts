@@ -3,7 +3,9 @@ import type {
   DashboardToday,
   MetricSummary,
   SymptomTrend,
+  WellbeingState,
 } from '@lumen/shared';
+import { SYMPTOM_LABELS } from '@lumen/shared';
 
 /**
  * Context minimization (§9). The model receives a compact, consented snapshot
@@ -23,6 +25,7 @@ export type FeedbackSignal = {
 export type MinimizedContext = {
   date: string;
   windowDays: number;
+  state: WellbeingState;
   cycle: CycleContext;
   metrics: MetricSummary[];
   symptoms: SymptomTrend[];
@@ -60,6 +63,7 @@ export function minimizeContext(input: {
   return {
     date: input.date,
     windowDays,
+    state: input.dashboard.wellbeing,
     // Cycle stays as an estimate with confidence, never a diagnosis.
     cycle: input.dashboard.cycle,
     metrics: input.dashboard.metrics,
@@ -70,6 +74,7 @@ export function minimizeContext(input: {
     activityConstraints: input.preferences.activityConstraints.slice(0, 10),
     recentFeedback: (input.recentFeedback ?? []).slice(0, 8),
     includedFields: [
+      'derived wellbeing state (low / recovering / steady / prolonged low)',
       'cycle estimate and confidence',
       `${windowDays}-day feature windows (energy, exhaustion, sleep, movement)`,
       'symptom counts and average severity',
@@ -96,6 +101,7 @@ function formatMetric(metric: MetricSummary): string {
 export function renderContext(context: MinimizedContext): string {
   const lines: string[] = [];
   lines.push(`Date: ${context.date}`);
+  lines.push(`Wellbeing state: ${context.state}`);
   lines.push(
     context.cycle.cycleDay === null
       ? 'Cycle: not enough history for an estimate'
@@ -106,8 +112,11 @@ export function renderContext(context: MinimizedContext): string {
   if (context.symptoms.length > 0) {
     lines.push('Symptom counts:');
     for (const symptom of context.symptoms) {
+      const label =
+        SYMPTOM_LABELS[symptom.symptomCode as keyof typeof SYMPTOM_LABELS] ??
+        symptom.symptomCode.replace(/_/g, ' ');
       lines.push(
-        `- ${symptom.symptomCode}: ${symptom.count7} in last 7 days, ${symptom.count28} in last 28 days`,
+        `- ${label}: ${symptom.count7} in last 7 days, ${symptom.count28} in last 28 days`,
       );
     }
   } else {

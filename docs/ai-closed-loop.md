@@ -8,10 +8,20 @@ Ollama server, and the loop is closed by feature snapshots and user feedback,
 ## The loop
 
 ```
-record ─► daily_features ─► minimized context ─► local model ─► schema + safety gate
-   ▲                                                                     │
-   └────────────── recommendation_feedback re-prioritizes ◄──────────────┘
+record ─► daily_features ─► wellbeing state ─► minimized context ─► local model
+   ▲                                                    │                │
+   │                                          schema + safety gate ◄──────┘
+   └──────── recommendation_feedback re-ranks ◄──────────┘
 ```
+
+The **wellbeing state** is a deterministic classifier
+(`packages/shared/src/wellbeing-state.ts`) computed from the same feature windows
+as the offline plan. It maps the data to one of `no_data`, `steady`, `low`,
+`recovering`, or `prolonged_low`, and the prompt uses it to decide how many and
+what kind of suggestions to make: a dip gets targeted ideas, a rebound gets
+"maintain this", continued normalcy gets little or nothing, and a sustained low
+(4+ consecutive low days, or 6+ during menstruation, so a couple of rough days
+never escalates) gets a fixed clinician nudge.
 
 Every step is recorded (`daily_features`, `recommendation_runs`,
 `recommendations`, `recommendation_feedback`) and versioned
@@ -68,9 +78,9 @@ curl -X POST -H "Authorization: Bearer <access token>" \
 `minimizeContext` (`apps/api/src/modules/ai/context.ts`) sends only derived,
 consented features:
 
-**Included:** cycle estimate + confidence, 28-day feature windows (energy,
-exhaustion, sleep, movement), symptom counts/severity, stated goals and
-constraints, recent feedback signals.
+**Included:** derived wellbeing state, cycle estimate + confidence, 28-day
+feature windows (energy, exhaustion, sleep, movement), symptom counts/severity,
+stated goals and constraints, recent feedback signals.
 
 **Never included:** raw check-in notes, lifetime raw event logs, account
 identifiers, audit events, session/device data.
@@ -97,7 +107,10 @@ pre-filtering only — never for user-facing guidance.
 7. Zod-validate the output against the recommendation contract.
 8. Run the deterministic safety gate per suggestion (`validateSuggestion`);
    drop any that fail, duplicate a category, or cite no basis.
-9. Persist the run + accepted suggestions with a 3-day expiry.
+9. On a `prolonged_low` state, prepend a fixed clinician nudge (not model text).
+10. Persist the run + accepted suggestions with a 3-day expiry.
+11. When listing, show only the latest run (max 4), re-ranked by recent feedback
+    so helpful categories surface first.
 
 A model that is unreachable, times out, or returns invalid output yields a
 `502`/`503`/`504` and writes nothing partial.
@@ -107,6 +120,4 @@ A model that is unreachable, times out, or returns invalid output yields a
 - **Evaluation fixtures** (Phase 3): unsafe requests, hallucinated facts,
   privacy leakage, malformed JSON, and model-version regression runs. Promotion
   onto the allow-list is gated on this.
-- **Feedback re-ranking**: feedback is stored and fed into context, but not yet
-  used to deterministically down-rank repeated/unhelpful suggestions.
 - **Egress proof**: firewall rules and telemetry-off checks you can demonstrate.

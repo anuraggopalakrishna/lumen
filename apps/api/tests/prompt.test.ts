@@ -10,6 +10,7 @@ import {
 const context: MinimizedContext = {
   date: '2026-03-10',
   windowDays: 28,
+  state: 'steady',
   cycle: {
     phase: 'luteal',
     cycleDay: 20,

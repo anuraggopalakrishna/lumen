@@ -35,17 +35,30 @@ export function buildSystemPrompt(): string {
     '- Prefer gentle, widely safe actions. If a constraint could conflict, either avoid that action or add a "caution" string.',
     '- Set confidence to "low" when the data is sparse, "medium" for a few days, "high" only for consistent multi-week patterns.',
     '- Return at most one suggestion per category, and fewer when the data does not support more.',
+    '- Write recommendation, rationale, and caution as plain everyday sentences for a non-technical reader. Never output field names, JSON keys, or codes such as "basedOn", "low_mood", "metric", or "avg3", and never format rationale as "key: value".',
     '- Respond with JSON matching the provided schema and nothing else.',
   ].join('\n');
 }
 
 export function buildUserPrompt(context: MinimizedContext): string {
   const allowed = SUGGESTION_CATEGORIES.join(', ');
+  const countGuidance: Record<MinimizedContext['state'], string> = {
+    no_data:
+      'There is almost no data. Return at most one suggestion, or none rather than guess.',
+    steady:
+      'The user is steady. Return at most one suggestion, or none if nothing is actionable.',
+    low: 'The user is currently low. Return up to three gentle, targeted suggestions.',
+    recovering:
+      'The user is recovering after a dip. Return one or two suggestions focused on maintaining the improvement.',
+    prolonged_low:
+      'The user has been low for several days. Return up to two gentle recovery suggestions and do not push exertion. Do not add a recovery suggestion here; a clinician nudge is added separately.',
+  };
   return [
     'Here is the user\'s minimized, consented feature snapshot.',
     '',
     renderContext(context),
     '',
+    `${countGuidance[context.state]}`,
     `Produce up to four wellbeing suggestions (one per category, categories: ${allowed}) that fit this snapshot and the stated constraints.`,
     'If there is too little data, return fewer suggestions rather than guessing.',
     'Return JSON matching the schema exactly.',

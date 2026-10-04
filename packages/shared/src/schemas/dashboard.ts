@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   SUGGESTION_CATEGORIES,
+  WELLBEING_STATES,
   type SuggestionCategory,
 } from '../constants.js';
 import { localDateSchema } from '../primitives.js';
@@ -45,6 +46,7 @@ export type SymptomTrend = z.infer<typeof symptomTrendSchema>;
 export const dashboardTodaySchema = z.object({
   date: localDateSchema,
   featureVersion: z.string(),
+  wellbeing: z.enum(WELLBEING_STATES),
   cycle: cycleContextSchema,
   metrics: z.array(metricSummarySchema),
   symptoms: z.array(symptomTrendSchema),

@@ -1,6 +1,7 @@
 import {
   DISCLAIMER,
   FEATURE_VERSION,
+  classifyWellbeingState,
   dashboardMetricOrder,
   type CycleContext,
   type DashboardToday,
@@ -241,9 +242,27 @@ export class DashboardService {
 
     const cycle: CycleContext = todayFeature.cycle;
 
+    const recentDays = lastNDates(date, 7)
+      .slice()
+      .reverse()
+      .map((day) => {
+        const feature = valuesByDate.get(day);
+        return {
+          energy: feature?.energy ?? null,
+          exhaustion: feature?.exhaustion ?? null,
+          sleepHours:
+            feature?.sleepMinutes === null || feature?.sleepMinutes === undefined
+              ? null
+              : Math.round((feature.sleepMinutes / 60) * 10) / 10,
+        };
+      });
+
     return {
       date,
       featureVersion: FEATURE_VERSION,
+      wellbeing: classifyWellbeingState(recentDays, {
+        menstruating: cycle.phase === 'menstrual',
+      }),
       cycle,
       metrics,
       symptoms,

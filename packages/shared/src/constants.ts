@@ -34,6 +34,16 @@ export type CycleFlow = (typeof CYCLE_FLOWS)[number];
 export const CYCLE_SOURCES = ['user', 'estimate'] as const;
 export type CycleSource = (typeof CYCLE_SOURCES)[number];
 
+/** Derived state of recent wellbeing, shared by the API and device. */
+export const WELLBEING_STATES = [
+  'no_data',
+  'steady',
+  'low',
+  'recovering',
+  'prolonged_low',
+] as const;
+export type WellbeingState = (typeof WELLBEING_STATES)[number];
+
 export const ACTIVITY_TYPES = [
   'rest',
   'walk',

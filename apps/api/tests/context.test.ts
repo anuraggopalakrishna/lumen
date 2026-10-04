@@ -9,6 +9,7 @@ function dashboard(overrides: Partial<DashboardToday> = {}): DashboardToday {
   return {
     date: '2026-03-10',
     featureVersion: 'v1',
+    wellbeing: 'recovering',
     cycle: {
       phase: 'luteal',
       cycleDay: 20,
@@ -68,7 +69,7 @@ describe('minimizeContext', () => {
       ],
     });
 
-    expect(context.includedFields.length).toBe(5);
+    expect(context.includedFields.length).toBe(6);
     expect(context.excludedFields).toContain('raw check-in notes');
     expect(context.excludedFields).toContain(
       'account identifiers (user id, email)',
@@ -118,6 +119,7 @@ describe('renderContext', () => {
     });
     const text = renderContext(context);
     expect(text).toContain('Date: 2026-03-10');
+    expect(text).toContain('Wellbeing state:');
     expect(text).toContain('Cycle: day 20');
     expect(text).toContain('energy (of 5)');
     expect(text).toContain('Goals: steady energy');

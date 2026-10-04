@@ -18,6 +18,7 @@ import {
   type FeedbackSignal,
 } from './context.js';
 import { assertModelAllowed, type ApprovedModel } from './model-registry.js';
+import { buildProlongedLowNotice } from './prolonged-low.js';
 import {
   createOllamaClient,
   type OllamaClient,
@@ -190,7 +191,7 @@ export class RecommendationGenerationService {
     }
 
     const seenCategories = new Set<string>();
-    const valid: Suggestion[] = [];
+    let valid: Suggestion[] = [];
     let rejected = 0;
     for (const suggestion of parsed.suggestions) {
       if (seenCategories.has(suggestion.category) || suggestion.basedOn.length === 0) {
@@ -207,6 +208,16 @@ export class RecommendationGenerationService {
       }
       seenCategories.add(suggestion.category);
       valid.push(suggestion);
+    }
+
+    // Sustained multi-day dip → add a deterministic, safety-approved clinician
+    // nudge (fixed text, never model output) and make room for it.
+    if (context.state === 'prolonged_low') {
+      const notice = buildProlongedLowNotice(context);
+      valid = [notice, ...valid.filter((s) => s.category !== 'recovery')].slice(
+        0,
+        4,
+      );
     }
 
     const expiresAt = new Date(Date.now() + RECOMMENDATION_TTL_MS);
