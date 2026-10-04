@@ -5,14 +5,14 @@ person's longitudinal patterns. It records cycle events, daily check-ins,
 activity, symptoms, and sleep, then turns them into clear, modest, non-diagnostic
 suggestions.
 
-This repository implements **Phase 1 — Private tracking foundation** of the
-[design spec](docs/design-spec.md): a working Expo app with offline-first local
-storage, a Fastify + PostgreSQL backend, authentication, consent, privacy
-export/deletion, and a deterministic personalization layer. It also includes the
-**Phase 3 closed-loop AI scaffold** — local Ollama inference, context
-minimization, schema + safety validation, and a model allow-list — which is
-**disabled by default** and fails closed. See
-[docs/ai-closed-loop.md](docs/ai-closed-loop.md).
+This repository is a working monorepo: an Expo app with offline-first local
+storage, a Fastify + PostgreSQL backend, authentication, purpose-based consent,
+and machine-readable privacy export/deletion. On top of that sits a deterministic
+personalization layer, plus an optional local-model layer that can add a few
+wellbeing suggestions. The model layer runs on a private, self-hosted Ollama
+instance and is **disabled by default** and fails closed — see
+[docs/ai-closed-loop.md](docs/ai-closed-loop.md). The [design spec](docs/design-spec.md)
+describes the product thinking behind it.
 
 ## Monorepo layout
 
@@ -144,8 +144,8 @@ from the authenticated session — never from the request body.
 ## Not shipped yet
 
 - Clinical claims, diagnosis, medication, fertility, or emergency advice.
-- AI evaluation fixtures and feedback re-ranking (the loop is private and
-  scaffolded, but promotion onto the model allow-list is gated on the Phase 3
-  evaluation suite — see [docs/ai-closed-loop.md](docs/ai-closed-loop.md)).
+- Model promotion tooling: the allow-list gate is enforced in code, but there is
+  no evaluation suite yet for promoting new models — see
+  [docs/ai-closed-loop.md](docs/ai-closed-loop.md).
 - Fine-tuning on health data, RAG, or vector stores.
 - Wearable imports, notifications, and third-party sharing.
